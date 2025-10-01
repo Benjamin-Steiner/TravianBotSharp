@@ -75,6 +75,11 @@ namespace MainCore.UI.ViewModels.Tabs.Villages
             _buildAutomationService = buildAutomationService;
             _ = buildAutomationSubscriber;
 
+            if (QueueTemplates.Count > 0)
+            {
+                SelectedTemplate = QueueTemplates[0];
+            }
+
             this.WhenAnyValue(vm => vm.Buildings.SelectedItem)
                 .ObserveOn(RxApp.TaskpoolScheduler)
                 .WhereNotNull()

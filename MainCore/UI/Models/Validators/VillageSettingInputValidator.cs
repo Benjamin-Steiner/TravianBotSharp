@@ -51,6 +51,10 @@ namespace MainCore.UI.Models.Validators
             RuleFor(x => x.WorkshopAmount.Min)
                 .GreaterThanOrEqualTo(0)
                 .WithMessage("Minimum workshop amount troop ({PropertyValue}) should be positive number");
+
+            RuleFor(x => x.AutoQueueRewardPlanMinQueue)
+                .InclusiveBetween(0, 5)
+                .WithMessage("Reward plan queue buffer ({PropertyValue}) should be between 0 and 5");
         }
     }
 }

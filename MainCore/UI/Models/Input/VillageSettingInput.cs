@@ -17,6 +17,18 @@ namespace MainCore.UI.Models.Input
         [Reactive]
         private bool _completeImmediately;
 
+        [Reactive]
+        private bool _autoBuildPrerequisites;
+
+        [Reactive]
+        private bool _autoQueueStorage;
+
+        [Reactive]
+        private bool _autoQueueRewardPlan;
+
+        [Reactive]
+        private int _autoQueueRewardPlanMinQueue;
+
         public TribeSelectorViewModel Tribe { get; } = new();
 
         [Reactive]
@@ -67,6 +79,10 @@ namespace MainCore.UI.Models.Input
             ApplyRomanQueueLogicWhenBuilding = settings.GetValueOrDefault(VillageSettingEnums.ApplyRomanQueueLogicWhenBuilding) == 1;
             CompleteImmediately = settings.GetValueOrDefault(VillageSettingEnums.CompleteImmediately) == 1;
             UseSpecialUpgrade = settings.GetValueOrDefault(VillageSettingEnums.UseSpecialUpgrade) == 1;
+            AutoBuildPrerequisites = settings.GetValueOrDefault(VillageSettingEnums.AutoBuildPrerequisites) == 1;
+            AutoQueueStorage = settings.GetValueOrDefault(VillageSettingEnums.AutoQueueStorage) == 1;
+            AutoQueueRewardPlan = settings.GetValueOrDefault(VillageSettingEnums.AutoQueueRewardPlan) == 1;
+            AutoQueueRewardPlanMinQueue = settings.GetValueOrDefault(VillageSettingEnums.AutoQueueRewardPlanMinQueue);
 
             TrainTroopEnable = settings.GetValueOrDefault(VillageSettingEnums.TrainTroopEnable) == 1;
             TrainWhenLowResource = settings.GetValueOrDefault(VillageSettingEnums.TrainWhenLowResource) == 1;
@@ -123,6 +139,10 @@ namespace MainCore.UI.Models.Input
             var applyRomanQueueLogicWhenBuilding = ApplyRomanQueueLogicWhenBuilding ? 1 : 0;
             var useSpecialUpgrade = UseSpecialUpgrade ? 1 : 0;
             var completeImmediately = CompleteImmediately ? 1 : 0;
+            var autoBuildPrerequisites = AutoBuildPrerequisites ? 1 : 0;
+            var autoQueueStorage = AutoQueueStorage ? 1 : 0;
+            var autoQueueRewardPlan = AutoQueueRewardPlan ? 1 : 0;
+            var autoQueueRewardPlanMinQueue = AutoQueueRewardPlanMinQueue;
 
             var tribe = (int)Tribe.Get();
 
@@ -157,6 +177,10 @@ namespace MainCore.UI.Models.Input
                 { VillageSettingEnums.ApplyRomanQueueLogicWhenBuilding, applyRomanQueueLogicWhenBuilding },
                 { VillageSettingEnums.UseSpecialUpgrade, useSpecialUpgrade },
                 { VillageSettingEnums.CompleteImmediately, completeImmediately },
+                { VillageSettingEnums.AutoBuildPrerequisites, autoBuildPrerequisites },
+                { VillageSettingEnums.AutoQueueStorage, autoQueueStorage },
+                { VillageSettingEnums.AutoQueueRewardPlan, autoQueueRewardPlan },
+                { VillageSettingEnums.AutoQueueRewardPlanMinQueue, autoQueueRewardPlanMinQueue },
                 { VillageSettingEnums.Tribe, tribe },
                 { VillageSettingEnums.TrainTroopEnable, trainTroopEnable },
                 { VillageSettingEnums.TrainWhenLowResource, trainWhenLowResource },
