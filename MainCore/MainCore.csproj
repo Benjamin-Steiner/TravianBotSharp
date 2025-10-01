@@ -1,4 +1,4 @@
-﻿<Project Sdk="Microsoft.NET.Sdk">
+<Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
     <TargetFramework>net8.0</TargetFramework>
     <RuntimeIdentifier>win-x64</RuntimeIdentifier>
@@ -18,7 +18,8 @@
     <CompilerGeneratedFilesOutputPath>$(GeneratedFolder)</CompilerGeneratedFilesOutputPath>
   </PropertyGroup>-->
   <ItemGroup>
-    <EmbeddedResource Include="Infrasturecture\ExtensionFiles\**" />
+    <EmbeddedResource Include="Infrasturecture\\ExtensionFiles\\**" />
+    <EmbeddedResource Include="Defaults\\BuildQueues\\*.json" />
     
     <!--<Compile Remove="$(GeneratedFolder)/**/*.cs" />
     <None Include="$(GeneratedFolder)/**/*.cs" />-->

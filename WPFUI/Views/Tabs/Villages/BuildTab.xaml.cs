@@ -1,4 +1,4 @@
-﻿using MainCore.UI.ViewModels.Tabs.Villages;
+using MainCore.UI.ViewModels.Tabs.Villages;
 using ReactiveUI;
 using System.Reactive.Disposables;
 
@@ -25,6 +25,7 @@ namespace WPFUI.Views.Tabs.Villages
                 this.OneWayBind(ViewModel, vm => vm.Jobs.Items, v => v.JobsGrid.ItemsSource).DisposeWith(d);
                 this.Bind(ViewModel, vm => vm.Jobs.SelectedItem, v => v.JobsGrid.SelectedItem).DisposeWith(d);
                 this.Bind(ViewModel, vm => vm.Jobs.SelectedIndex, v => v.JobsGrid.SelectedIndex).DisposeWith(d);
+                this.OneWayBind(ViewModel, vm => vm.NextJobEstimate, v => v.NextJobEstimateText.Text).DisposeWith(d);
 
                 this.OneWayBind(ViewModel, vm => vm.Queue.Items, v => v.QueueGrid.ItemsSource).DisposeWith(d);
                 this.Bind(ViewModel, vm => vm.Queue.SelectedItem, v => v.QueueGrid.SelectedItem).DisposeWith(d);
@@ -35,6 +36,9 @@ namespace WPFUI.Views.Tabs.Villages
 
                 this.BindCommand(ViewModel, vm => vm.ImportCommand, v => v.ImportButton).DisposeWith(d);
                 this.BindCommand(ViewModel, vm => vm.ExportCommand, v => v.ExportButton).DisposeWith(d);
+                this.OneWayBind(ViewModel, vm => vm.QueueTemplates, v => v.TemplateSelector.ItemsSource).DisposeWith(d);
+                this.Bind(ViewModel, vm => vm.SelectedTemplate, v => v.TemplateSelector.SelectedItem).DisposeWith(d);
+                this.BindCommand(ViewModel, vm => vm.LoadTemplateCommand, v => v.ApplyTemplateButton).DisposeWith(d);
 
                 this.BindCommand(ViewModel, vm => vm.UpCommand, v => v.UpButton).DisposeWith(d);
                 this.BindCommand(ViewModel, vm => vm.DownCommand, v => v.DownButton).DisposeWith(d);
