@@ -11,10 +11,11 @@
         private static async ValueTask HandleAsync(
             Command command,
             AppDbContext context,
-            ITaskManager taskManager
+            ITaskManager taskManager,
+            IBuildAutomationService buildAutomationService,
+            CancellationToken cancellationToken
             )
         {
-            await Task.CompletedTask;
             var (accountId, villageId, settings) = command;
             if (settings.Count == 0) return;
 
@@ -120,6 +121,19 @@
                 {
                     taskManager.Remove<ClaimQuestTask.Task>(accountId, villageId);
                 }
+            }
+
+            var automationSettings = new[]
+            {
+                VillageSettingEnums.AutoBuildPrerequisites,
+                VillageSettingEnums.AutoQueueStorage,
+                VillageSettingEnums.AutoQueueRewardPlan,
+                VillageSettingEnums.AutoQueueRewardPlanMinQueue,
+            };
+
+            if (settings.Keys.Any(automationSettings.Contains))
+            {
+                await buildAutomationService.EnsureQueueAsync(accountId, villageId, cancellationToken).ConfigureAwait(false);
             }
         }
     }

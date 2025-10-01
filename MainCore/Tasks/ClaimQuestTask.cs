@@ -29,12 +29,15 @@ namespace MainCore.Tasks
             Task task,
             ToQuestPageCommand.Handler toQuestPageCommand,
             ClaimQuestCommand.Handler claimQuestCommand,
+            StartQuestCommand.Handler startQuestCommand,
             CancellationToken cancellationToken)
         {
             Result result;
             result = await toQuestPageCommand.HandleAsync(new(), cancellationToken);
             if (result.IsFailed) return result;
             result = await claimQuestCommand.HandleAsync(new(), cancellationToken);
+            if (result.IsFailed) return result;
+            result = await startQuestCommand.HandleAsync(new(), cancellationToken);
             if (result.IsFailed) return result;
             return Result.Ok();
         }

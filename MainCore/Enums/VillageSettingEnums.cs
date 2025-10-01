@@ -61,5 +61,11 @@
         AutoClaimQuestEnable,
 
         CompleteImmediatelyTime,
+
+        // Automation
+        AutoBuildPrerequisites,
+        AutoQueueStorage,
+        AutoQueueRewardPlan,
+        AutoQueueRewardPlanMinQueue,
     }
 }

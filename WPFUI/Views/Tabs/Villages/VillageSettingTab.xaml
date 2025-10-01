@@ -44,6 +44,14 @@
                         </StackPanel>
 
                         <CheckBox x:Name="UseSpecialUpgrade" Content="Use special upgrade method (the right upgrade button)" />
+                        <CheckBox x:Name="AutoBuildPrerequisites" Content="Automatically queue prerequisite buildings" />
+                        <CheckBox x:Name="AutoQueueStorage" Content="Auto queue storage buildings when capacity is high" />
+                        <StackPanel Orientation="Horizontal">
+                            <CheckBox x:Name="AutoQueueRewardPlan" Content="Build for maximal reward" VerticalAlignment="Center" />
+                            <TextBlock Text="Keep at least" Margin="10,0,0,0" VerticalAlignment="Center" />
+                            <TextBox x:Name="AutoQueueRewardPlanMinQueue" Width="30" Margin="5,0,0,0" />
+                            <TextBlock Text="reward jobs queued" Margin="5,0,0,0" VerticalAlignment="Center" />
+                        </StackPanel>
                     </StackPanel>
                 </Border>
                 <Border Style="{DynamicResource Box}">

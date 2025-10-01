@@ -41,5 +41,15 @@
             var result = MainCore.Parsers.QuestParser.IsQuestPage(_html);
             result.ShouldBeTrue();
         }
+
+        [Fact]
+        public void GetEasiestQuest()
+        {
+            _html.Load(QuestPage);
+            var quest = MainCore.Parsers.QuestParser.GetEasiestQuest(_html);
+            quest.ShouldNotBeNull();
+            quest!.QuestId.ShouldBe("buildingProgress_18_1");
+            quest.Scope.ShouldBe(MainCore.Parsers.QuestParser.QuestScope.Village);
+        }
     }
 }
