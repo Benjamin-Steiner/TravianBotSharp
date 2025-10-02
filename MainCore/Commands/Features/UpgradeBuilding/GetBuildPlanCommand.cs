@@ -1,4 +1,8 @@
 ﻿using System.Text.Json;
+using MainCore.Entities;
+using MainCore.Enums;
+using MainCore.Infrasturecture.Persistence;
+using Microsoft.EntityFrameworkCore;
 
 namespace MainCore.Commands.Features.UpgradeBuilding
 {
@@ -16,6 +20,7 @@ namespace MainCore.Commands.Features.UpgradeBuilding
             DeleteJobByIdCommand.Handler deleteJobByIdCommand,
             AddJobCommand.Handler addJobCommand,
             ValidateJobCompleteCommand.Handler validateJobCompleteCommand,
+            AppDbContext context,
             ILogger logger,
             IRxQueue rxQueue,
             CancellationToken cancellationToken
@@ -42,7 +47,13 @@ namespace MainCore.Commands.Features.UpgradeBuilding
 
                     var layoutBuildings = await getLayoutBuildingsQuery.HandleAsync(new(villageId, true));
                     var resourceBuildPlan = JsonSerializer.Deserialize<ResourceBuildPlan>(job.Content)!;
-                    var normalBuildPlan = GetNormalBuildPlan(resourceBuildPlan, layoutBuildings);
+                    var storage = await context.Storages
+                        .AsNoTracking()
+                        .FirstOrDefaultAsync(x => x.VillageId == villageId.Value, cancellationToken);
+
+                    var heroReserve = await GetHeroResourceTotalsAsync(context, accountId, cancellationToken);
+
+                    var normalBuildPlan = GetNormalBuildPlan(resourceBuildPlan, layoutBuildings, storage, heroReserve);
                     if (normalBuildPlan is null)
                     {
                         await deleteJobByIdCommand.HandleAsync(new(job.Id), cancellationToken);
@@ -77,7 +88,9 @@ namespace MainCore.Commands.Features.UpgradeBuilding
 
         private static NormalBuildPlan? GetNormalBuildPlan(
             ResourceBuildPlan plan,
-            List<BuildingItem> layoutBuildings
+            List<BuildingItem> layoutBuildings,
+            Storage? storage,
+            long[] heroReserve
         )
         {
             List<BuildingItem> resourceFields;
@@ -106,13 +119,33 @@ namespace MainCore.Commands.Features.UpgradeBuilding
 
             if (resourceFields.Count == 0) return null;
 
+            if (plan.Plan == ResourcePlanEnums.AllResources)
+            {
+                var groupedFields = resourceFields
+                    .GroupBy(x => x.Type)
+                    .ToDictionary(x => x.Key, x => x.OrderBy(f => f.Level).ThenBy(f => f.Location).ToList());
+
+                foreach (var resourceType in GetResourcePriority(storage, heroReserve))
+                {
+                    if (!groupedFields.TryGetValue(resourceType, out var candidates) || candidates.Count == 0) continue;
+
+                    var selected = candidates.First();
+                    return new NormalBuildPlan()
+                    {
+                        Type = selected.Type,
+                        Level = selected.Level + 1,
+                        Location = selected.Location,
+                    };
+                }
+            }
+
             var minLevel = resourceFields
                 .Select(x => x.Level)
                 .Min();
 
             var chosenOne = resourceFields
                 .Where(x => x.Level == minLevel)
-                .OrderBy(x => x.Id.Value + Random.Shared.Next())
+                .OrderBy(x => x.Location)
                 .FirstOrDefault();
 
             if (chosenOne is null) return null;
@@ -125,6 +158,72 @@ namespace MainCore.Commands.Features.UpgradeBuilding
             };
             return normalBuildPlan;
         }
+
+        private static async Task<long[]> GetHeroResourceTotalsAsync(AppDbContext context, AccountId accountId, CancellationToken cancellationToken)
+        {
+            var totals = new long[4];
+            var heroItems = await context.HeroItems
+                .AsNoTracking()
+                .Where(x => x.AccountId == accountId.Value)
+                .Where(x => x.Type == HeroItemEnums.Wood || x.Type == HeroItemEnums.Clay || x.Type == HeroItemEnums.Iron || x.Type == HeroItemEnums.Crop)
+                .ToListAsync(cancellationToken);
+
+            foreach (var item in heroItems)
+            {
+                switch (item.Type)
+                {
+                    case HeroItemEnums.Wood:
+                        totals[0] += item.Amount;
+                        break;
+                    case HeroItemEnums.Clay:
+                        totals[1] += item.Amount;
+                        break;
+                    case HeroItemEnums.Iron:
+                        totals[2] += item.Amount;
+                        break;
+                    case HeroItemEnums.Crop:
+                        totals[3] += item.Amount;
+                        break;
+                }
+            }
+
+            return totals;
+        }
+
+        private static IEnumerable<BuildingEnums> GetResourcePriority(Storage? storage, long[] heroReserve)
+        {
+            var priorities = new (BuildingEnums Type, long Total)[]
+            {
+                (BuildingEnums.Woodcutter, (storage?.Wood ?? 0) + GetHeroReserve(heroReserve, 0)),
+                (BuildingEnums.ClayPit, (storage?.Clay ?? 0) + GetHeroReserve(heroReserve, 1)),
+                (BuildingEnums.IronMine, (storage?.Iron ?? 0) + GetHeroReserve(heroReserve, 2)),
+                (BuildingEnums.Cropland, (storage?.Crop ?? 0) + GetHeroReserve(heroReserve, 3)),
+            };
+
+            return priorities
+                .OrderBy(x => x.Total)
+                .ThenBy(x => GetTypeOrder(x.Type))
+                .Select(x => x.Type);
+        }
+
+        private static long GetHeroReserve(long[] heroReserve, int index)
+        {
+            if (heroReserve.Length > index)
+            {
+                return heroReserve[index];
+            }
+
+            return 0;
+        }
+
+        private static int GetTypeOrder(BuildingEnums type) => type switch
+        {
+            BuildingEnums.Woodcutter => 0,
+            BuildingEnums.ClayPit => 1,
+            BuildingEnums.IronMine => 2,
+            BuildingEnums.Cropland => 3,
+            _ => 4,
+        };
 
         private static bool IsJobComplete(JobDto job, List<BuildingDto> buildings, List<QueueBuilding> queueBuildings)
         {

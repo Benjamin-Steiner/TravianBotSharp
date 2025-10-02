@@ -753,7 +753,7 @@ namespace MainCore.UI.ViewModels.Tabs.Villages
             for (var i = 0; i < jobs.Count; i++)
             {
                 var job = jobs[i];
-                var candidatePlan = await ResolvePlanAsync(scope, job).ConfigureAwait(false);
+                var candidatePlan = await ResolvePlanAsync(scope, job, storage, heroReserve).ConfigureAwait(false);
                 if (candidatePlan is null)
                 {
                     unresolvedJob ??= job;
@@ -807,7 +807,7 @@ namespace MainCore.UI.ViewModels.Tabs.Villages
             return CombineDetails(forecast, followingDetails);
         }
 
-        private async Task<NormalBuildPlan?> ResolvePlanAsync(IServiceScope scope, JobDto job)
+        private async Task<NormalBuildPlan?> ResolvePlanAsync(IServiceScope scope, JobDto job, Storage? storage, long[] heroReserve)
         {
             switch (job.Type)
             {
@@ -819,13 +819,13 @@ namespace MainCore.UI.ViewModels.Tabs.Villages
 
                     var getLayoutBuildingsQuery = scope.ServiceProvider.GetRequiredService<GetLayoutBuildingsCommand.Handler>();
                     var layout = await getLayoutBuildingsQuery.HandleAsync(new(VillageId, true)).ConfigureAwait(false);
-                    return ConvertResourcePlan(resourcePlan, layout);
+                    return ConvertResourcePlan(resourcePlan, layout, storage, heroReserve);
                 default:
                     return null;
             }
         }
 
-        private static NormalBuildPlan? ConvertResourcePlan(ResourceBuildPlan plan, List<BuildingItem> layoutBuildings)
+        private static NormalBuildPlan? ConvertResourcePlan(ResourceBuildPlan plan, List<BuildingItem> layoutBuildings, Storage? storage, long[] heroReserve)
         {
             List<BuildingItem> resourceFields;
 
@@ -853,6 +853,26 @@ namespace MainCore.UI.ViewModels.Tabs.Villages
 
             if (resourceFields.Count == 0) return null;
 
+            if (plan.Plan == ResourcePlanEnums.AllResources)
+            {
+                var groupedFields = resourceFields
+                    .GroupBy(x => x.Type)
+                    .ToDictionary(x => x.Key, x => x.OrderBy(f => f.Level).ThenBy(f => f.Location).ToList());
+
+                foreach (var resourceType in GetResourcePriority(storage, heroReserve))
+                {
+                    if (!groupedFields.TryGetValue(resourceType, out var candidates) || candidates.Count == 0) continue;
+
+                    var selected = candidates.First();
+                    return new NormalBuildPlan
+                    {
+                        Type = selected.Type,
+                        Level = selected.Level + 1,
+                        Location = selected.Location,
+                    };
+                }
+            }
+
             var minLevel = resourceFields.Min(x => x.Level);
             var candidate = resourceFields
                 .Where(x => x.Level == minLevel)
@@ -867,6 +887,41 @@ namespace MainCore.UI.ViewModels.Tabs.Villages
                 Level = candidate.Level + 1,
                 Location = candidate.Location,
             };
+        }
+
+        private static IEnumerable<BuildingEnums> GetResourcePriority(Storage? storage, long[] heroReserve)
+        {
+            var priorities = new (BuildingEnums Type, long Total)[]
+            {
+                (BuildingEnums.Woodcutter, (storage?.Wood ?? 0) + GetHeroReserve(heroReserve, 0)),
+                (BuildingEnums.ClayPit, (storage?.Clay ?? 0) + GetHeroReserve(heroReserve, 1)),
+                (BuildingEnums.IronMine, (storage?.Iron ?? 0) + GetHeroReserve(heroReserve, 2)),
+                (BuildingEnums.Cropland, (storage?.Crop ?? 0) + GetHeroReserve(heroReserve, 3)),
+            };
+
+            return priorities
+                .OrderBy(x => x.Total)
+                .ThenBy(x => GetTypeOrder(x.Type))
+                .Select(x => x.Type);
+        }
+
+        private static int GetTypeOrder(BuildingEnums type) => type switch
+        {
+            BuildingEnums.Woodcutter => 0,
+            BuildingEnums.ClayPit => 1,
+            BuildingEnums.IronMine => 2,
+            BuildingEnums.Cropland => 3,
+            _ => 4,
+        };
+
+        private static long GetHeroReserve(long[] heroReserve, int index)
+        {
+            if (heroReserve.Length > index)
+            {
+                return heroReserve[index];
+            }
+
+            return 0;
         }
 
         private NextJobForecast ComposeEstimate(
