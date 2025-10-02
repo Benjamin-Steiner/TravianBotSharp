@@ -1,4 +1,5 @@
-﻿using System.Web;
+using System.Web;
+using MainCore.Errors;
 
 namespace MainCore.Commands.Navigate
 {
@@ -55,15 +56,36 @@ namespace MainCore.Commands.Navigate
                     var decodedJs = HttpUtility.HtmlDecode(javascript);
 
                     result = await browser.ExecuteJsScript(decodedJs);
-                    if (result.IsFailed) return result;
+                    if (result.IsFailed)
+                    {
+                        return await NavigateDirect(browser, location, cancellationToken, result);
+                    }
                 }
                 else
                 {
                     result = await browser.Click(By.XPath(node.XPath), cancellationToken);
-                    if (result.IsFailed) return result;
+                    if (result.IsFailed)
+                    {
+                        return await NavigateDirect(browser, location, cancellationToken, result);
+                    }
                 }
                 result = await browser.WaitPageChanged("build.php", cancellationToken);
-                if (result.IsFailed) return result;
+                if (result.IsFailed)
+                {
+                    return await NavigateDirect(browser, location, cancellationToken, result);
+                }
+            }
+            return Result.Ok();
+        }
+
+        private static async ValueTask<Result> NavigateDirect(IChromeBrowser browser, int location, CancellationToken cancellationToken, Result? previousResult = null)
+        {
+            var currentUrl = new Uri(browser.CurrentUrl);
+            var destination = $"{currentUrl.Scheme}://{currentUrl.Authority}/build.php?id={location}";
+            var navigateResult = await browser.Navigate(destination, cancellationToken);
+            if (navigateResult.IsFailed)
+            {
+                return previousResult ?? navigateResult;
             }
             return Result.Ok();
         }

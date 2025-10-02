@@ -1,4 +1,4 @@
-﻿namespace MainCore.Enums
+namespace MainCore.Enums
 {
     public enum AccountSettingEnums
     {
@@ -17,5 +17,11 @@
         SleepTimeMax,
         HeadlessChrome,
         EnableAutoStartAdventure,
+        ServerSpeed,
+        // Scheduler resiliency settings
+        Scheduler_MaxTaskMinutes,
+        Scheduler_AutoUnpauseMinutes,
+        Scheduler_RetryBaseSeconds,
+        Scheduler_RetryMaxSeconds,
     }
 }

@@ -1,4 +1,4 @@
-﻿using System.Text.Json;
+using System.Text.Json;
 
 namespace MainCore.Commands.Features.UpgradeBuilding
 {
@@ -18,15 +18,6 @@ namespace MainCore.Commands.Features.UpgradeBuilding
             if (job.Type == JobTypeEnums.ResourceBuild) return false;
 
             var plan = JsonSerializer.Deserialize<NormalBuildPlan>(job.Content)!;
-
-            var queueBuilding = context.QueueBuildings
-                .Where(x => x.VillageId == villageId.Value)
-                .Where(x => x.Location == plan.Location)
-                .OrderByDescending(x => x.Level)
-                .Select(x => x.Level)
-                .FirstOrDefault();
-
-            if (queueBuilding >= plan.Level) return true;
 
             var villageBuilding = context.Buildings
                 .Where(x => x.VillageId == villageId.Value)

@@ -19,6 +19,7 @@ namespace WPFUI.Views.Tabs
             this.WhenActivated(d =>
             {
                 this.BindCommand(ViewModel, vm => vm.LoadCurrentCommand, v => v.LoadCurrent).DisposeWith(d);
+                this.BindCommand(ViewModel, vm => vm.LoadCurrentCommand, v => v.ReloadVillageButton).DisposeWith(d);
                 this.BindCommand(ViewModel, vm => vm.LoadUnloadCommand, v => v.LoadUnload).DisposeWith(d);
                 this.BindCommand(ViewModel, vm => vm.LoadAllCommand, v => v.LoadAll).DisposeWith(d);
 

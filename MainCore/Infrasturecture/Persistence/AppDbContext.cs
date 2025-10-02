@@ -47,6 +47,11 @@ namespace MainCore.Infrasturecture.Persistence
             {AccountSettingEnums.WorkTimeMax, 720 },
             {AccountSettingEnums.HeadlessChrome, 0 },
             {AccountSettingEnums.EnableAutoStartAdventure, 0 },
+            // Scheduler defaults
+            {AccountSettingEnums.Scheduler_MaxTaskMinutes, 5 },
+            {AccountSettingEnums.Scheduler_AutoUnpauseMinutes, 5 },
+            {AccountSettingEnums.Scheduler_RetryBaseSeconds, 30 },
+            {AccountSettingEnums.Scheduler_RetryMaxSeconds, 600 },
         }.ToImmutableDictionary();
 
         private List<AccountSettingEnums> GetMissingAccountSettings()

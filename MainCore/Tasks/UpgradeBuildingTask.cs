@@ -55,18 +55,25 @@ namespace MainCore.Tasks
                 {
                     if (result.HasError<LackOfFreeCrop>())
                     {
+                        logger.Information("Lack of free crop; enqueue cropland before retrying.");
                         await addCroplandCommand.HandleAsync(new(task.VillageId), cancellationToken);
                         continue;
                     }
 
                     if (result.HasError<StorageLimit>())
                     {
-                        return new Stop();
+                        // Storage capacity insufficient. Reschedule rather than stopping.
+                        // Give automation a window to queue storage upgrades.
+                        var delay = TimeSpan.FromMinutes(15);
+                        task.ExecuteAt = DateTime.Now.Add(delay);
+                        logger.Information("Storage limit encountered; rescheduling build after {Delay}.", delay);
+                        return new Skip();
                     }
                     if (result.HasError<MissingResource>())
                     {
                         var time = UpgradeParser.GetTimeWhenEnoughResource(browser.Html, plan.Type);
                         task.ExecuteAt = DateTime.Now.Add(time);
+                        logger.Information("Missing resources; rescheduling after {Delay}.", time);
                         return new Skip();
                     }
 

@@ -31,7 +31,7 @@ namespace MainCore.Services
 
         public void Emit(LogEvent logEvent)
         {
-            if (logEvent.Level < LogEventLevel.Information) return;
+            if (logEvent.Level < LogEventLevel.Debug) return;
             var logEventPropertyValue = logEvent.Properties.GetValueOrDefault("AccountId");
             if (logEventPropertyValue is null) return;
             if (logEventPropertyValue is not ScalarValue scalarValue) return;

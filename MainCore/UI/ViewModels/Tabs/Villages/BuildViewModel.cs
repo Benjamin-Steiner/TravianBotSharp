@@ -26,6 +26,7 @@ using MainCore.Entities;
 using System.Threading;
 using System.Reactive.Concurrency;
 using System.Globalization;
+using MainCore.DTO;
 
 namespace MainCore.UI.ViewModels.Tabs.Villages
 {
@@ -59,6 +60,15 @@ namespace MainCore.UI.ViewModels.Tabs.Villages
         public ObservableCollection<BuildQueueTemplate> QueueTemplates { get; } = new(BuildQueueTemplateProvider.Templates);
 
         private BuildQueueTemplate? _selectedTemplate;
+        private BuildForecastStatus _nextJobStatus = BuildForecastStatus.Info;
+        public BuildForecastStatus NextJobStatus
+        {
+            get => _nextJobStatus;
+            private set => this.RaiseAndSetIfChanged(ref _nextJobStatus, value);
+        }
+
+        public ObservableCollection<string> NextJobDetails { get; } = new();
+
         public BuildQueueTemplate? SelectedTemplate
         {
             get => _selectedTemplate;
@@ -665,7 +675,10 @@ namespace MainCore.UI.ViewModels.Tabs.Villages
             {
                 RxApp.MainThreadScheduler.Schedule(() =>
                 {
-                    NextJobEstimate = "Select a village to view job timing.";
+                    ApplyNextJobForecast(new NextJobForecast(
+                        "Select a village to view job timing.",
+                        BuildForecastStatus.Info,
+                        Array.Empty<string>()));
                 });
                 return;
             }
@@ -674,12 +687,16 @@ namespace MainCore.UI.ViewModels.Tabs.Villages
             try
             {
                 using var scope = _serviceScopeFactory.CreateScope(AccountId);
-                var message = await BuildNextJobEstimateAsync(scope).ConfigureAwait(false);
-                RxApp.MainThreadScheduler.Schedule(() => NextJobEstimate = message);
+                var forecast = await BuildNextJobEstimateAsync(scope).ConfigureAwait(false);
+                RxApp.MainThreadScheduler.Schedule(() => ApplyNextJobForecast(forecast));
             }
             catch (Exception exception)
             {
-                RxApp.MainThreadScheduler.Schedule(() => NextJobEstimate = $"Estimation unavailable ({exception.Message}).");
+                RxApp.MainThreadScheduler.Schedule(() => ApplyNextJobForecast(
+                    new NextJobForecast(
+                        $"Estimation unavailable ({exception.Message}).",
+                        BuildForecastStatus.Error,
+                        Array.Empty<string>())));
             }
             finally
             {
@@ -687,7 +704,7 @@ namespace MainCore.UI.ViewModels.Tabs.Villages
             }
         }
 
-        private async Task<string> BuildNextJobEstimateAsync(IServiceScope scope)
+        private async Task<NextJobForecast> BuildNextJobEstimateAsync(IServiceScope scope)
         {
             var context = scope.ServiceProvider.GetRequiredService<AppDbContext>();
 
@@ -700,7 +717,7 @@ namespace MainCore.UI.ViewModels.Tabs.Villages
 
             if (jobs.Count == 0)
             {
-                return "Job queue is empty.";
+                return new NextJobForecast("Job queue is empty.", BuildForecastStatus.Info, Array.Empty<string>());
             }
 
             var storage = context.Storages
@@ -731,9 +748,11 @@ namespace MainCore.UI.ViewModels.Tabs.Villages
             NormalBuildPlan? selectedPlan = null;
             JobDto? unresolvedJob = null;
             var resolvedAnyPlan = false;
+            var selectedJobIndex = -1;
 
-            foreach (var job in jobs)
+            for (var i = 0; i < jobs.Count; i++)
             {
+                var job = jobs[i];
                 var candidatePlan = await ResolvePlanAsync(scope, job).ConfigureAwait(false);
                 if (candidatePlan is null)
                 {
@@ -749,20 +768,43 @@ namespace MainCore.UI.ViewModels.Tabs.Villages
                 }
 
                 selectedPlan = candidatePlan;
+                selectedJobIndex = i;
                 break;
             }
 
             if (selectedPlan is null)
             {
+                var details = BuildQueueSummaries(jobs, 0, includeCurrent: true);
+
                 if (!resolvedAnyPlan && unresolvedJob is not null)
                 {
-                    return $"Next job ({unresolvedJob.Type}) could not be resolved.";
+                    if (details.Count == 0)
+                    {
+                        var summary = JobMapper.GetContent(unresolvedJob);
+                        if (!string.IsNullOrWhiteSpace(summary))
+                        {
+                            details.Add($"Next (unresolved): {summary}");
+                        }
+                    }
+
+                    return new NextJobForecast($"Next job ({unresolvedJob.Type}) could not be resolved.", BuildForecastStatus.Error, details);
                 }
 
-                return "All queued jobs are already in progress.";
+                return new NextJobForecast("All queued jobs are already in progress.", BuildForecastStatus.Info, details);
             }
 
-            return ComposeEstimate(selectedPlan, storage, queueBuildings, production, heroReserve, useHeroResource, plusActive, applyRomanQueueLogic);
+            var forecast = ComposeEstimate(
+                selectedPlan,
+                storage,
+                queueBuildings,
+                production,
+                heroReserve,
+                useHeroResource,
+                plusActive,
+                applyRomanQueueLogic);
+
+            var followingDetails = BuildQueueSummaries(jobs, selectedJobIndex, includeCurrent: false);
+            return CombineDetails(forecast, followingDetails);
         }
 
         private async Task<NormalBuildPlan?> ResolvePlanAsync(IServiceScope scope, JobDto job)
@@ -827,7 +869,7 @@ namespace MainCore.UI.ViewModels.Tabs.Villages
             };
         }
 
-        private string ComposeEstimate(
+        private NextJobForecast ComposeEstimate(
             NormalBuildPlan plan,
             Storage? storage,
             List<QueueBuilding> queueBuildings,
@@ -838,6 +880,11 @@ namespace MainCore.UI.ViewModels.Tabs.Villages
             bool applyRomanQueueLogic)
         {
             var now = DateTime.Now;
+            var details = new List<string>
+            {
+                $"Next: {DescribePlan(plan)}"
+            };
+
             var required = plan.Type.GetCost(plan.Level);
 
             var warehouseResources = new[]
@@ -848,7 +895,6 @@ namespace MainCore.UI.ViewModels.Tabs.Villages
                 storage?.Crop ?? 0,
             };
 
-            var initialDeficit = new long[4];
             var remainingDeficit = new long[4];
             var heroUsed = new long[4];
 
@@ -857,7 +903,6 @@ namespace MainCore.UI.ViewModels.Tabs.Villages
                 var requiredAmount = required[i];
                 var fromWarehouse = warehouseResources[i];
                 var initialShortfall = Math.Max(0, requiredAmount - fromWarehouse);
-                initialDeficit[i] = initialShortfall;
 
                 var availableHero = useHeroResources
                     ? Math.Min(heroReserves[i], initialShortfall)
@@ -894,7 +939,10 @@ namespace MainCore.UI.ViewModels.Tabs.Villages
             double maxResourceHours = 0d;
             for (var i = 0; i < 4; i++)
             {
-                if (remainingDeficit[i] <= 0) continue;
+                if (remainingDeficit[i] <= 0)
+                {
+                    continue;
+                }
 
                 var perHour = hourlyProduction[i];
                 if (perHour <= 0)
@@ -927,13 +975,35 @@ namespace MainCore.UI.ViewModels.Tabs.Villages
             if (freeCropDeficit > 0)
             {
                 var deficitText = FormatResourceAmount(freeCropDeficit);
-                return $"Next job {DescribePlan(plan)} blocked: need {deficitText} more free crop.";
+                details.Add($"Missing free crop: {deficitText}");
+                return CreateForecast(
+                    $"Next job {DescribePlan(plan)} blocked by free crop shortage.",
+                    BuildForecastStatus.Blocked,
+                    details);
             }
+
             if (resourceReadyTime is null && hasResourceDeficit)
             {
                 var deficitText = DescribeResourceDeficit(remainingDeficit, heroUsed);
-                var hint = useHeroResources ? string.Empty : " Enable hero crates or adjust production.";
-                return $"Next job {DescribePlan(plan)} pending resources: {deficitText}.{hint}";
+                if (!string.IsNullOrWhiteSpace(deficitText))
+                {
+                    details.Add($"Resources needed: {deficitText}");
+                }
+
+                if (heroUsedAny)
+                {
+                    details.Add("Hero crates will be consumed.");
+                }
+
+                if (!useHeroResources && !string.IsNullOrWhiteSpace(deficitText))
+                {
+                    details.Add("Hint: Enable hero crates or adjust production.");
+                }
+
+                return CreateForecast(
+                    $"Next job {DescribePlan(plan)} waiting on resource income.",
+                    BuildForecastStatus.Waiting,
+                    details);
             }
 
             var queueReady = queueReadyTime > now ? queueReadyTime : now;
@@ -942,43 +1012,114 @@ namespace MainCore.UI.ViewModels.Tabs.Villages
                 : queueReady;
 
             var wait = startTime - now;
-            var builder = new StringBuilder();
-
-            if (wait <= TimeSpan.FromSeconds(3))
-            {
-                builder.Append($"Next job {DescribePlan(plan)} is ready to start.");
-            }
-            else
-            {
-                builder.Append($"Next job {DescribePlan(plan)} expected at {FormatTime(startTime)} ({wait.Humanize(precision: 2)}).");
-            }
+            var status = wait <= TimeSpan.FromSeconds(3)
+                ? BuildForecastStatus.Ready
+                : BuildForecastStatus.Waiting;
 
             if (queueReadyTime > now)
             {
                 var queueWait = queueReadyTime - now;
-                builder.Append($" Queue frees at {FormatTime(queueReadyTime)}");
-                if (queueWait > TimeSpan.Zero)
+                details.Add($"Queue frees at {FormatTime(queueReadyTime)} ({queueWait.Humanize(precision: 2)})");
+            }
+
+            if (resourceReadyTime.HasValue && resourceReadyTime.Value > now)
+            {
+                var resourceWait = resourceReadyTime.Value - now;
+                if (resourceWait > TimeSpan.FromSeconds(3))
                 {
-                    builder.Append($" ({queueWait.Humanize(precision: 2)}).");
-                }
-                else
-                {
-                    builder.Append('.');
+                    details.Add($"Resources ready at {FormatTime(resourceReadyTime.Value)} ({resourceWait.Humanize(precision: 2)})");
                 }
             }
 
-            if (remainingDeficit.Any(x => x > 0) && resourceReadyTime.HasValue && resourceReadyTime.Value > queueReadyTime)
+            var outstandingResources = DescribeResourceDeficit(remainingDeficit, heroUsed);
+            if (!string.IsNullOrWhiteSpace(outstandingResources))
             {
-                builder.Append($" Waiting on {DescribeResourceDeficit(remainingDeficit, new long[4])}.");
+                details.Add($"Resources needed: {outstandingResources}");
             }
 
             if (heroUsedAny)
             {
-                builder.Append(" Hero crates will be consumed.");
+                details.Add("Hero crates will be consumed.");
             }
 
-            return builder.ToString().Trim();
+            var message = status == BuildForecastStatus.Ready
+                ? $"Next job {DescribePlan(plan)} is ready to start."
+                : $"Next job {DescribePlan(plan)} expected at {FormatTime(startTime)} ({wait.Humanize(precision: 2)}).";
+
+            return CreateForecast(message, status, details);
         }
+
+        private static NextJobForecast CreateForecast(string message, BuildForecastStatus status, IEnumerable<string> details)
+        {
+            var cleaned = details
+                .Where(detail => !string.IsNullOrWhiteSpace(detail))
+                .Distinct()
+                .ToList();
+
+            return new NextJobForecast(message, status, cleaned);
+        }
+
+        private static NextJobForecast CombineDetails(NextJobForecast forecast, IEnumerable<string> additionalDetails)
+        {
+            var combined = forecast.Details
+                .Concat(additionalDetails ?? Array.Empty<string>())
+                .Where(detail => !string.IsNullOrWhiteSpace(detail))
+                .Distinct()
+                .ToList();
+
+            return new NextJobForecast(forecast.Message, forecast.Status, combined);
+        }
+
+        private static List<string> BuildQueueSummaries(IReadOnlyList<JobDto> jobs, int referenceIndex, bool includeCurrent)
+        {
+            var details = new List<string>();
+            if (jobs.Count == 0)
+            {
+                return details;
+            }
+
+            var labels = includeCurrent
+                ? new[] { "Next", "Following" }
+                : new[] { "Following", "Later" };
+
+            var startIndex = includeCurrent
+                ? Math.Max(referenceIndex, 0)
+                : Math.Max(referenceIndex + 1, 0);
+
+            var labelIndex = 0;
+            for (var i = startIndex; i < jobs.Count && labelIndex < labels.Length; i++)
+            {
+                if (!includeCurrent && i == referenceIndex)
+                {
+                    continue;
+                }
+
+                var content = JobMapper.GetContent(jobs[i]);
+                if (string.IsNullOrWhiteSpace(content))
+                {
+                    continue;
+                }
+
+                details.Add($"{labels[labelIndex]}: {content}");
+                labelIndex++;
+            }
+
+            return details;
+        }
+
+        private void ApplyNextJobForecast(NextJobForecast forecast)
+        {
+            NextJobEstimate = forecast.Message;
+            NextJobStatus = forecast.Status;
+
+            NextJobDetails.Clear();
+            foreach (var detail in forecast.Details)
+            {
+                NextJobDetails.Add(detail);
+            }
+        }
+
+        private sealed record NextJobForecast(string Message, BuildForecastStatus Status, IReadOnlyList<string> Details);
 
         private static bool IsPlanPending(
             NormalBuildPlan plan,
@@ -1013,7 +1154,7 @@ namespace MainCore.UI.ViewModels.Tabs.Villages
 
         private static string DescribePlan(NormalBuildPlan plan)
         {
-            return $"{plan.Type.Humanize()} ? level {plan.Level} (slot {plan.Location})";
+            return $"{plan.Type.Humanize()} -> level {plan.Level} (slot {plan.Location})";
         }
 
         private long[] GetHeroResourceTotals(AppDbContext context)
@@ -1176,17 +1317,14 @@ namespace MainCore.UI.ViewModels.Tabs.Villages
         }
     }
 
-
+    public enum BuildForecastStatus
+    {
+        Info,
+        Ready,
+        Waiting,
+        Blocked,
+        Error
+    }
 
 }
-
-
-
-
-
-
-
-
-
-
 

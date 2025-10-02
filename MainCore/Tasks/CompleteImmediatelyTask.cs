@@ -52,6 +52,7 @@ namespace MainCore.Tasks
             Task task,
             ToDorfCommand.Handler toDorfCommand,
             CompleteImmediatelyCommand.Handler completeImmediatelyCommand,
+            UpdateBuildingCommand.Handler updateBuildingCommand,
             ITaskManager taskManager,
             CancellationToken cancellationToken)
         {
@@ -59,6 +60,9 @@ namespace MainCore.Tasks
             result = await toDorfCommand.HandleAsync(new(0), cancellationToken);
             if (result.IsFailed) return result;
             result = await completeImmediatelyCommand.HandleAsync(new(), cancellationToken);
+            if (result.IsFailed) return result;
+
+            result = await updateBuildingCommand.HandleAsync(new(task.VillageId), cancellationToken);
             if (result.IsFailed) return result;
 
             taskManager.AddOrUpdate(new UpgradeBuildingTask.Task(task.AccountId, task.VillageId));

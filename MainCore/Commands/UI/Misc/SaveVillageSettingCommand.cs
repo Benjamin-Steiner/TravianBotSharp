@@ -1,4 +1,9 @@
-﻿namespace MainCore.Commands.UI.Misc
+using Microsoft.EntityFrameworkCore;
+using System.Linq;
+
+using MainCore.Services.Automation;
+
+namespace MainCore.Commands.UI.Misc
 {
     [Handler]
     public static partial class SaveVillageSettingCommand
@@ -133,7 +138,13 @@
 
             if (settings.Keys.Any(automationSettings.Contains))
             {
-                await buildAutomationService.EnsureQueueAsync(accountId, villageId, cancellationToken).ConfigureAwait(false);
+                var automationChanged = await buildAutomationService.EnsureQueueAsync(accountId, villageId, cancellationToken).ConfigureAwait(false);
+
+                var hasJobs = context.Jobs.Any(x => x.VillageId == villageId.Value);
+                if (automationChanged || hasJobs)
+                {
+                    taskManager.AddOrUpdate(new UpgradeBuildingTask.Task(accountId, villageId));
+                }
             }
         }
     }

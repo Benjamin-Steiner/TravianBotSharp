@@ -6,6 +6,7 @@
     xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
     xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
     xmlns:local="clr-namespace:WPFUI.Views.Tabs.Villages"
+    xmlns:converter="clr-namespace:WPFUI.Converter"
     mc:Ignorable="d"
     d:DesignHeight="450" d:DesignWidth="800"
     xmlns:materialDesign="http://materialdesigninxaml.net/winfx/xaml/themes">
@@ -97,23 +98,84 @@
             </Border>
         </Grid>
         <Grid Grid.Column="4">
+            <Grid.Resources>
+                <converter:ForecastStatusToBrushConverter x:Key="ForecastStatusToBrushConverter" />
+            </Grid.Resources>
             <Grid.RowDefinitions>
                 <RowDefinition Height="Auto" />
                 <RowDefinition Height="*" />
             </Grid.RowDefinitions>
             <Grid Grid.Row="0">
-                <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="Auto" />
-                    <ColumnDefinition Width="Auto" />
-                    <ColumnDefinition Width="200" />
-                    <ColumnDefinition Width="Auto" />
-                    <ColumnDefinition Width="*" />
-                </Grid.ColumnDefinitions>
-                <Button x:Name="ImportButton" Grid.Column="0" Content="Import" Margin="5" />
-                <Button x:Name="ExportButton" Grid.Column="1" Content="Export" Margin="5" />
-                <ComboBox x:Name="TemplateSelector" Grid.Column="2" Margin="5" DisplayMemberPath="Name" />
-                <Button x:Name="ApplyTemplateButton" Grid.Column="3" Content="Apply Template" Margin="5" />
-                <TextBlock x:Name="NextJobEstimateText" Grid.Column="4" Margin="8,5,8,5" TextWrapping="Wrap" VerticalAlignment="Center" />
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                </Grid.RowDefinitions>
+                <StackPanel Grid.Row="0" Orientation="Horizontal" VerticalAlignment="Center" Margin="5,5,5,0">
+                    <materialDesign:PackIcon Kind="ClipboardClockOutline" Width="18" Height="18" Margin="0,0,4,0" />
+                    <TextBlock Text="Build forecast" FontWeight="SemiBold" VerticalAlignment="Center" />
+                </StackPanel>
+                <Grid Grid.Row="1" Margin="5,0,5,0">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+
+                    <Button x:Name="ImportButton"
+                            Grid.Column="0"
+                            Content="Import"
+                            Margin="0,0,8,8"
+                            MinWidth="80"
+                            VerticalAlignment="Center" />
+
+                    <Button x:Name="ExportButton"
+                            Grid.Column="1"
+                            Content="Export"
+                            Margin="0,0,8,8"
+                            MinWidth="80"
+                            VerticalAlignment="Center" />
+
+                    <ComboBox x:Name="TemplateSelector"
+                              Grid.Column="2"
+                              Margin="0,0,8,8"
+                              MinWidth="180"
+                              HorizontalAlignment="Stretch"
+                              VerticalAlignment="Center"
+                              ItemsSource="{Binding QueueTemplates}"
+                              SelectedItem="{Binding SelectedTemplate, Mode=TwoWay}"
+                              DisplayMemberPath="Name" />
+
+                    <Button x:Name="ApplyTemplateButton"
+                            Grid.Column="3"
+                            Content="Apply Template"
+                            Margin="0,0,0,8"
+                            MinWidth="120"
+                            VerticalAlignment="Center" />
+                </Grid>
+                <TextBlock x:Name="NextJobEstimateText"
+                           Grid.Row="2"
+                           Margin="8,4,8,2"
+                           TextWrapping="Wrap"
+                           VerticalAlignment="Center"
+                           FontWeight="Medium"
+                           Foreground="{Binding NextJobStatus, Converter={StaticResource ForecastStatusToBrushConverter}}" />
+                <ItemsControl x:Name="NextJobDetailsList"
+                              Grid.Row="3"
+                              Margin="8,0,8,8">
+                    <ItemsControl.ItemsPanel>
+                        <ItemsPanelTemplate>
+                            <StackPanel />
+                        </ItemsPanelTemplate>
+                    </ItemsControl.ItemsPanel>
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate>
+                            <TextBlock Text="{Binding}" TextWrapping="Wrap" Margin="0,2,0,0" />
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
             </Grid>
             <Border Grid.Row="1" Style="{DynamicResource Box}">
                 <ListBox x:Name="JobsGrid" SelectionMode="Single" ItemTemplate="{DynamicResource ListBoxColorItem}">

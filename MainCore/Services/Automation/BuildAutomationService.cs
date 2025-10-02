@@ -411,19 +411,17 @@ namespace MainCore.Services.Automation
                 var currentLevel = Math.Max(building.Level, Math.Max(building.QueueLevel, building.JobLevel));
                 if (currentLevel >= prerequisite.Level) continue;
 
-                for (var level = currentLevel + 1; level <= prerequisite.Level; level++)
+                // Queue a single job targeting the required level (not per-level steps).
+                var plan = new NormalBuildPlan
                 {
-                    var plan = new NormalBuildPlan
-                    {
-                        Type = prerequisite.Type,
-                        Location = building.Location,
-                        Level = level,
-                        Source = source,
-                    };
+                    Type = prerequisite.Type,
+                    Location = building.Location,
+                    Level = prerequisite.Level,
+                    Source = source,
+                };
 
-                    await addJobCommand.HandleAsync(new(villageId, plan.ToJob(), true), cancellationToken).ConfigureAwait(false);
-                    added = true;
-                }
+                await addJobCommand.HandleAsync(new(villageId, plan.ToJob(), true), cancellationToken).ConfigureAwait(false);
+                added = true;
 
                 buildings = await getLayoutBuildingsQuery.HandleAsync(new(villageId), cancellationToken).ConfigureAwait(false);
             }

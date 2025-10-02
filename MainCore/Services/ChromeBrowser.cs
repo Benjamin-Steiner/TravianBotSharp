@@ -10,6 +10,7 @@ namespace MainCore.Services
         private ChromeDriver? _driver;
         private readonly ChromeDriverService _chromeService;
         private WebDriverWait _wait = null!;
+        private WebDriverWait _elementWait = null!;
 
         private readonly string[] _extensionsPath;
         private readonly HtmlDocument _htmlDoc = new();
@@ -74,7 +75,8 @@ namespace MainCore.Services
             _driver = await Task.Run(() => new ChromeDriver(_chromeService, options, TimeSpan.FromMinutes(3)));
 
             _driver.Manage().Timeouts().PageLoad = TimeSpan.FromMinutes(3);
-            _wait = new WebDriverWait(_driver, TimeSpan.FromMinutes(3)); // watch ads
+            _wait = new WebDriverWait(_driver, TimeSpan.FromMinutes(3)); // long operations (watch ads)
+            _elementWait = new WebDriverWait(_driver, TimeSpan.FromSeconds(45));
         }
 
         public ChromeDriver? Driver => _driver;
@@ -132,7 +134,7 @@ namespace MainCore.Services
         {
             IWebElement wait()
             {
-                var element = _wait.Until((driver) =>
+                var element = _elementWait.Until((driver) =>
                 {
                     var elements = driver.FindElements(by);
                     if (elements.Count == 0) return null;
